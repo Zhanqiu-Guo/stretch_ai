@@ -71,7 +71,7 @@ def capture_and_process_image(camera, mode, obj, socket, hello_robot):
                 tilt_retries += 1
                 time.sleep(1)
 
-    if mode == "place":
+    if mode == "place" or mode == "press":
         translation = np.array([-translation[1], -translation[0], -translation[2]])
 
     if mode == "pick":
@@ -225,8 +225,9 @@ def pickup(
     if diff > 0.08:
         dist = diff - 0.08
         state = robot.robot.get_six_joints()
+        state[2] += 0.01
         state[1] += 0.02
-        # state[0] -= 0.015
+        state[0] -= 0.08
         robot.robot.arm_to(state, blocking=True)
         robot.move_to_pose([0, 0, dist], [0, 0, 0], [1])
         diff = diff - dist

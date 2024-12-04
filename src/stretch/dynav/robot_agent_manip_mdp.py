@@ -126,7 +126,7 @@ class RobotAgentMDP:
         self.robot.head_to(head_pan=0, head_tilt=-0.6, blocking=True)
         for i in range(8):
             xyt[2] += 2 * np.pi / 8
-            self.robot.navigate_to(xyt, blocking=True)
+            self.robot.move_base_to(xyt, blocking=True)
             self.update()
 
     def update(self):
@@ -332,7 +332,7 @@ class RobotAgentMDP:
         else:
             gripper_width = 1
 
-        if input("Do you want to do this manipulation? Y or N ") != "N":
+        if True: # input("Do you want to do this manipulation? Y or N ") != "N":
             pickup(
                 self.manip_wrapper,
                 rotation,
@@ -344,6 +344,94 @@ class RobotAgentMDP:
             )
 
         # Shift the base back to the original point as we are certain that original point is navigable in navigation obstacle map
+        self.manip_wrapper.move_to_position(
+            base_trans=-self.manip_wrapper.robot.get_six_joints()[0]
+        )
+
+        return True
+
+    def press(self, text, init_tilt=INIT_HEAD_TILT, base_node=TOP_CAMERA_NODE):
+        # Switch to manipulation mode and look at end effector
+        self.robot.switch_to_manipulation_mode()
+        self.robot.look_at_ee()
+
+        # Move to initial position
+        self.manip_wrapper.move_to_position(
+            arm_pos=INIT_ARM_POS,
+            head_pan=INIT_HEAD_PAN,
+            head_tilt=init_tilt,
+            gripper_pos=INIT_GRIPPER_POS,
+            lift_pos=INIT_LIFT_POS,
+            wrist_pitch=INIT_WRIST_PITCH,
+            wrist_roll=INIT_WRIST_ROLL,
+            wrist_yaw=INIT_WRIST_YAW,
+        )
+
+        # Initialize camera
+        camera = RealSenseCamera(self.robot)
+
+        # Get pressing pose from vision system
+        rotation, translation = capture_and_process_image(
+            camera=camera,
+            mode="press",
+            obj=text,
+            socket=self.image_sender.manip_socket,
+            hello_robot=self.manip_wrapper,
+        )
+
+        if rotation is None:
+            return False
+
+        if input("Do you want to perform this pressing action? Y or N ") != "N":
+            # Pre-press position: Move to a position slightly before the pressing point
+            # Lift arm before extending to avoid collisions
+            self.manip_wrapper.move_to_position(lift_pos=1.05)
+            
+            # Align end-effector orientation for pressing
+            self.manip_wrapper.move_to_position(
+                wrist_pitch=0,  # Align end-effector perpendicular to button surface
+                wrist_yaw=0,    # Neutral yaw
+                wrist_roll=0,   # Neutral roll
+                blocking=True
+            )
+
+            # Move to pre-press position (slightly offset from button)
+            pre_press_translation = translation.copy()
+            pre_press_translation[2] += 0.05  # Add 5cm offset in z-direction
+            move_to_point(
+                self.manip_wrapper, 
+                pre_press_translation, 
+                base_node, 
+                self.transform_node, 
+                move_mode=0
+            )
+
+            # Execute pressing motion
+            # Move to pressing point
+            move_to_point(
+                self.manip_wrapper, 
+                translation, 
+                base_node, 
+                self.transform_node, 
+                move_mode=0
+            )
+
+            # Hold briefly at pressing point
+            time.sleep(0.5)
+
+            # Retract from button
+            self.manip_wrapper.move_to_position(
+                arm_pos=max(self.manip_wrapper.robot.get_six_joints()[2] - 0.1, 0)
+            )
+
+            # Return to safe position
+            self.manip_wrapper.move_to_position(
+                lift_pos=1.05,
+                arm_pos=0,
+                wrist_pitch=-1.57
+            )
+
+        # Return to initial position
         self.manip_wrapper.move_to_position(
             base_trans=-self.manip_wrapper.robot.get_six_joints()[0]
         )

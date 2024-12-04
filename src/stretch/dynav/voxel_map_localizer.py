@@ -195,7 +195,17 @@ class VoxelMapLocalizer:
     def find_obs_id_for_A(self, A):
         obs_counts = self.voxel_pcd._obs_counts
         alignments = self.find_alignment_over_model(A).cpu()
-        return obs_counts[alignments.argmax(dim=-1)].detach().cpu()
+
+        top_3_indices = alignments.topk(k=3, dim=-1).indices
+        return obs_counts[top_3_indices].detach().cpu()
+        # return obs_counts[alignments.argmax(dim=-1)].detach().cpu()
+
+    def find_top_obs_id_for_A(self, A, top_k=5):
+        obs_counts = self.voxel_pcd._obs_counts
+        alignments = self.find_alignment_over_model(A).cpu()
+
+        top_indices = alignments.topk(k=top_k, dim=-1).indices
+        return obs_counts[top_indices].detach().cpu()
 
     def compute_coord(self, text, obs_id, threshold=0.2):
         # print(obs_id, len(self.voxel_map_wrapper.observations))
