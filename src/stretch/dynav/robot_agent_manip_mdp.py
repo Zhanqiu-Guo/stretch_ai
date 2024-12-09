@@ -49,7 +49,7 @@ class RobotAgentMDP:
         robot,
         parameters: Dict[str, Any],
         server_ip: str,
-        image_port: int = 5558,
+        image_port: int = 5555,
         text_port: int = 5556,
         manip_port: int = 5557,
         re: int = 1,
@@ -91,22 +91,22 @@ class RobotAgentMDP:
         if not os.path.exists("dynamem_log"):
             os.makedirs("dynamem_log")
 
-        if method == "dynamem":
-            from stretch.dynav.voxel_map_server import ImageProcessor as VoxelMapImageProcessor
+        # if method == "dynamem":
+        #     from stretch.dynav.voxel_map_server import ImageProcessor as VoxelMapImageProcessor
 
-            self.image_processor = VoxelMapImageProcessor(
-                rerun=True,
-                rerun_visualizer=self.robot._rerun,
-                log="dynamem_log/" + datetime.now().strftime("%Y%m%d_%H%M%S"),
-            )  # type: ignore
-        elif method == "mllm":
-            from stretch.dynav.llm_server import ImageProcessor as mLLMImageProcessor
+        #     self.image_processor = VoxelMapImageProcessor(
+        #         rerun=True,
+        #         rerun_visualizer=self.robot._rerun,
+        #         log="dynamem_log/" + datetime.now().strftime("%Y%m%d_%H%M%S"),
+        #     )  # type: ignore
+        # elif method == "mllm":
+        #     from stretch.dynav.llm_server import ImageProcessor as mLLMImageProcessor
 
-            self.image_processor = mLLMImageProcessor(
-                rerun=True,
-                static=False,
-                log="dynamem_log/" + datetime.now().strftime("%Y%m%d_%H%M%S"),
-            )  # type: ignore
+        #     self.image_processor = mLLMImageProcessor(
+        #         rerun=True,
+        #         static=False,
+        #         log="dynamem_log/" + datetime.now().strftime("%Y%m%d_%H%M%S"),
+        #     )  # type: ignore
 
         self.look_around_times: list[float] = []
         self.execute_times: list[float] = []
@@ -115,8 +115,8 @@ class RobotAgentMDP:
 
     def look_around(self):
         print("*" * 10, "Look around to check", "*" * 10)
-        for pan in [0.4, -0.4, -1.2, -1.6]:
-            for tilt in [-0.65]:
+        for pan in [0.6, -0.2, -1.0, -1.8]:
+            for tilt in [-0.6]:
                 self.robot.head_to(pan, tilt, blocking=True)
                 self.update()
 
@@ -124,21 +124,21 @@ class RobotAgentMDP:
         print("*" * 10, "Rotate in place", "*" * 10)
         xyt = self.robot.get_base_pose()
         self.robot.head_to(head_pan=0, head_tilt=-0.6, blocking=True)
-        for i in range(8):
-            xyt[2] += 2 * np.pi / 8
+        for i in range(10):
+            xyt[2] += 2 * np.pi / 10
             self.robot.move_base_to(xyt, blocking=True)
             self.update()
 
     def update(self):
         """Step the data collector. Get a single observation of the world. Remove bad points, such as those from too far or too near the camera. Update the 3d world representation."""
-        # Sleep some time so the robot rgbd observations are more likely to be updated
-        time.sleep(0.5)
-
+        # Sleep some time for the robot camera to focus
+        # time.sleep(0.3)
         obs = self.robot.get_observation()
         self.obs_count += 1
         rgb, depth, K, camera_pose = obs.rgb, obs.depth, obs.camera_K, obs.camera_pose
         start_time = time.time()
-        self.image_processor.process_rgbd_images(rgb, depth, K, camera_pose)
+        # self.image_processor.process_rgbd_images(rgb, depth, K, camera_pose)
+        self.image_sender.send_images(obs)
         end_time = time.time()
         print("Image processing takes", end_time - start_time, "seconds.")
 
@@ -155,8 +155,8 @@ class RobotAgentMDP:
 
         start = self.robot.get_base_pose()
         # print("       Start:", start)
-        # res = self.image_sender.query_text(text, start)
-        res = self.image_processor.process_text(text, start)
+        res = self.image_sender.query_text(text, start)
+        # res = self.image_processor.process_text(text, start)
         if len(res) == 0 and text != "" and text is not None:
             res = self.image_processor.process_text("", start)
 
@@ -332,7 +332,7 @@ class RobotAgentMDP:
         else:
             gripper_width = 1
 
-        if True: # input("Do you want to do this manipulation? Y or N ") != "N":
+        if input("Do you want to do this manipulation? Y or N ") != "N":
             pickup(
                 self.manip_wrapper,
                 rotation,
@@ -344,94 +344,6 @@ class RobotAgentMDP:
             )
 
         # Shift the base back to the original point as we are certain that original point is navigable in navigation obstacle map
-        self.manip_wrapper.move_to_position(
-            base_trans=-self.manip_wrapper.robot.get_six_joints()[0]
-        )
-
-        return True
-
-    def press(self, text, init_tilt=INIT_HEAD_TILT, base_node=TOP_CAMERA_NODE):
-        # Switch to manipulation mode and look at end effector
-        self.robot.switch_to_manipulation_mode()
-        self.robot.look_at_ee()
-
-        # Move to initial position
-        self.manip_wrapper.move_to_position(
-            arm_pos=INIT_ARM_POS,
-            head_pan=INIT_HEAD_PAN,
-            head_tilt=init_tilt,
-            gripper_pos=INIT_GRIPPER_POS,
-            lift_pos=INIT_LIFT_POS,
-            wrist_pitch=INIT_WRIST_PITCH,
-            wrist_roll=INIT_WRIST_ROLL,
-            wrist_yaw=INIT_WRIST_YAW,
-        )
-
-        # Initialize camera
-        camera = RealSenseCamera(self.robot)
-
-        # Get pressing pose from vision system
-        rotation, translation = capture_and_process_image(
-            camera=camera,
-            mode="press",
-            obj=text,
-            socket=self.image_sender.manip_socket,
-            hello_robot=self.manip_wrapper,
-        )
-
-        if rotation is None:
-            return False
-
-        if input("Do you want to perform this pressing action? Y or N ") != "N":
-            # Pre-press position: Move to a position slightly before the pressing point
-            # Lift arm before extending to avoid collisions
-            self.manip_wrapper.move_to_position(lift_pos=1.05)
-            
-            # Align end-effector orientation for pressing
-            self.manip_wrapper.move_to_position(
-                wrist_pitch=0,  # Align end-effector perpendicular to button surface
-                wrist_yaw=0,    # Neutral yaw
-                wrist_roll=0,   # Neutral roll
-                blocking=True
-            )
-
-            # Move to pre-press position (slightly offset from button)
-            pre_press_translation = translation.copy()
-            pre_press_translation[2] += 0.05  # Add 5cm offset in z-direction
-            move_to_point(
-                self.manip_wrapper, 
-                pre_press_translation, 
-                base_node, 
-                self.transform_node, 
-                move_mode=0
-            )
-
-            # Execute pressing motion
-            # Move to pressing point
-            move_to_point(
-                self.manip_wrapper, 
-                translation, 
-                base_node, 
-                self.transform_node, 
-                move_mode=0
-            )
-
-            # Hold briefly at pressing point
-            time.sleep(0.5)
-
-            # Retract from button
-            self.manip_wrapper.move_to_position(
-                arm_pos=max(self.manip_wrapper.robot.get_six_joints()[2] - 0.1, 0)
-            )
-
-            # Return to safe position
-            self.manip_wrapper.move_to_position(
-                lift_pos=1.05,
-                arm_pos=0,
-                wrist_pitch=-1.57
-            )
-
-        # Return to initial position
         self.manip_wrapper.move_to_position(
             base_trans=-self.manip_wrapper.robot.get_six_joints()[0]
         )
