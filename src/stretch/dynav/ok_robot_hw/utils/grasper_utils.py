@@ -227,7 +227,7 @@ def pickup(
         state = robot.robot.get_six_joints()
         state[2] += 0.01
         state[1] += 0.02
-        state[0] -= 0.08
+        state[0] -= 0.2
         robot.robot.arm_to(state, blocking=True)
         robot.move_to_pose([0, 0, dist], [0, 0, 0], [1])
         diff = diff - dist

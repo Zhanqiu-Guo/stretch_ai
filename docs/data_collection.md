@@ -16,10 +16,10 @@ python -m pip install webcam mediapipe
 
 ### On PC:
 
-- Advanced installation is needed if you also want to train/evaluate policies with [LfD](learning_from_demonstration.md), see [advanced installation](../README.md#advanced-installation-pc-only)
+- 
 
 - Linux instructions: if using a Linux PC, run `install_dex_teleop.sh` to update `udev` rules
-
+  
   ```bash
   cd /path/to/stretch_ai/scripts
   ./install_dex_teleop.sh
@@ -62,7 +62,7 @@ Click this thumbnail to see data collection teleop in action:
 [![Dex Teleop with Clutch and Base X motion](https://img.youtube.com/vi/ZQQWOkSkw5o/0.jpg)](https://www.youtube.com/watch?v=ZQQWOkSkw5o)
 
 ```bash
-python -m stretch.app.dex_teleop.ros2_leader -i $ROBOT_IP --teleop-mode base_x --save-images --record-success --task-name default_task
+python -m stretch.app.dex_teleop.ros2_leader -i $ROBOT_IP --task-name default_task
 ```
 
 A GUI displaying RGB and depth feeds from both cameras will now pop up. All commands are sent by pressing the keyboard with this GUI selected as the active window.
@@ -134,6 +134,6 @@ Therefore, it can be useful to tape out a reference position as a basis for vary
 
 Episodes should reflect the way you want the robot to complete the task. Your first couple of runs doing the task will not be consistent, but will improve as you learn the feel for the teleoperation. It is recommended to start collecting demonstrations used for training only after sufficient practice with the task.
 
-|       Task direction alignment       |  Taping for positional reference  |
-| :----------------------------------: | :-------------------------------: |
+| Task direction alignment             | Taping for positional reference   |
+|:------------------------------------:|:---------------------------------:|
 | ![](./images/dex_teleop_example.jpg) | ![](./images/robot_alignment.jpg) |

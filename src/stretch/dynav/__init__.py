@@ -8,3 +8,5 @@
 # license information maybe found below, if so.
 
 from .robot_agent_manip_mdp import RobotAgentMDP
+# from .code_as_policy import RobotCodeGen
+# from .code_as_policy import navigate, pick_up, place_to

@@ -138,3 +138,7 @@ log/
 install/
 
 debug*/
+
+# log file
+dynamem_log/
+src/dynamem_log/

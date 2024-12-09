@@ -246,6 +246,10 @@ class InstanceMemory:
         Returns:
             Dict[int, Instance]: The newly indexed dictionary of Instance objects for the given environment.
         """
+        if len(self.instances[env_id]) == 0:
+            self.instances[env_id] = {}
+            return self.instances[env_id]
+
         ids, instances = zip(*self.instances[env_id].items())
         new_ids = range(len(ids))
         new_env_instances = dict(zip(new_ids, instances))
@@ -722,8 +726,10 @@ class InstanceMemory:
             # get embedding
             if (
                 self.encoder is not None
-                and cropped_image.shape[1] * cropped_image.shape[2] > self.min_instance_points
+                and cropped_image.shape[0] * cropped_image.shape[1] > self.min_instance_points
+                and cropped_image.shape[2] == 3
             ):
+
                 # Compute semantic image features (e.g. SigLIP or CLIP)
                 embedding = self.encoder.encode_image(cropped_image).to(cropped_image.device)
 
